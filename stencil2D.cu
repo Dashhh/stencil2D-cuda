@@ -70,6 +70,7 @@ template<int D>
 __global__ void sten_avg(float* output, float* input, int width, int height)
 {
 	int size = BHEIGHT+2*D;
+
 	__shared__ float data[BHEIGHT+2*D][BWIDTH+2*D];
 
 	int column = blockIdx.x*blockDim.x + threadIdx.x;
