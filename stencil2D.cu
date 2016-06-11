@@ -69,7 +69,7 @@
 template<int D>
 __global__ void sten_avg(float* output, float* input, int width, int height)
 {
-	int size = BHEIGHT+4;
+	int size = BHEIGHT+2*D;
 	__shared__ float data[BHEIGHT+2*D][BWIDTH+2*D];
 
 	int column = blockIdx.x*blockDim.x + threadIdx.x;
@@ -78,26 +78,26 @@ __global__ void sten_avg(float* output, float* input, int width, int height)
 	int sline = (line%BHEIGHT);
 
 	// Dodanie pol od
-	if (column-2 < 0 || line-2 < 0)
+	if (column-D < 0 || line-D < 0)
 		data[sline][scolumn] = 0;
 	else
-		data[sline][scolumn] = input[(line-2)*width+column-2];
+		data[sline][scolumn] = input[(line-D)*width+column-D];
 
 	if (scolumn + blockDim.x < size) {
 		scolumn += blockDim.x;
 		column += blockDim.x;
 		
-		if (line-2 < 0 || column-2 >= width)
+		if (line-D < 0 || column-D >= width)
 			data[sline][scolumn] = 0;
 		else
-			data[sline][scolumn] = input[(line-2)*width+column-2];
+			data[sline][scolumn] = input[(line-D)*width+column-D];
 		if (sline + blockDim.y < size) {
 			sline += blockDim.y;
 			line += blockDim.y;
-			if (line-2 >= height || column-2 >= width  )
+			if (line-D >= height || column-D >= width  )
 				data[sline][scolumn] = 0;
 			else
-				data[sline][scolumn] = input[(line-2)*width+column-2];
+				data[sline][scolumn] = input[(line-D)*width+column-D];
 			sline -= blockDim.y;
 			line -= blockDim.y;
 		}
@@ -108,10 +108,10 @@ __global__ void sten_avg(float* output, float* input, int width, int height)
 	if (sline + blockDim.y < size) {
 		sline += blockDim.y;
 		line += blockDim.y;
-		if (column-2 < 0 || line-2 >= height )
+		if (column-D < 0 || line-D >= height )
 			data[sline][scolumn] = 0;
 		else
-			data[sline][scolumn] = input[(line-2)*width+column-2];
+			data[sline][scolumn] = input[(line-D)*width+column-D];
 		sline -= blockDim.y;
 		line -= blockDim.y;
 	}
@@ -119,10 +119,10 @@ __global__ void sten_avg(float* output, float* input, int width, int height)
 	__syncthreads();
 
 	float result;	
-	for (int i = 0; i <  5; i++)
-		for (int k = 0; k < 5; k++)
+	for (int i = 0; i <  2*D+1; i++)
+		for (int k = 0; k < 2*D+1; k++)
 			result += data[sline+i][scolumn+k];
-	output[line*width+column] = result/25;
+	output[line*width+column] = result/((2*D+1)*(2*D+1));
 }
 
 template<int D, bool AVG>
@@ -134,7 +134,7 @@ cudaError stencil2D(float* output, float* input, int width, int height, float* m
 	cudaMemcpy(devInput, input, sizeof(float)*width*height, cudaMemcpyHostToDevice);
 	dim3 blockDim(BWIDTH, BHEIGHT);
 	dim3 gridDim(width/BWIDTH, height/BHEIGHT);
-	sten_avg<2><<<gridDim, blockDim>>>(devOut, devInput, width, height);
+	sten_avg<D><<<gridDim, blockDim>>>(devOut, devInput, width, height);
 	cudaDeviceSynchronize();
 	cudaMemcpy(output, devOut, sizeof(float)*width*height, cudaMemcpyDeviceToHost);
 	cudaFree(devInput);
